@@ -14,6 +14,9 @@ class LinearScheduler(object):
         else:
             self.epsilon = self.eps_begin - (self.eps_begin-self.eps_end) * t / self.n_steps
 
+    def get_eps(self):
+        return self.epsilon
+
 
 class LinearExploration(LinearScheduler):
     def __init__(self, env, eps_begin, eps_end, n_steps):

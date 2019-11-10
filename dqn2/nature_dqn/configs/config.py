@@ -2,7 +2,7 @@ class config():
     # env config
     render_train     = False
     render_test      = False
-    env_name         = "Pong-v0"
+    env_name         = "PongNoFrameskip-v4"
     overwrite_render = True
     record           = True
     high             = 255.
@@ -33,10 +33,10 @@ class config():
     learning_freq      = 4
     state_history      = 4
     skip_frame         = 4
-    lr_begin           = 0.00025
-    lr_end             = 0.00005
+    lr_begin           = 1e-4
+    lr_end             = 1e-4
     lr_nsteps          = nsteps_train/2
     eps_begin          = 1
-    eps_end            = 0.1
-    eps_nsteps         = 1000000
+    eps_end            = 0.01
+    eps_nsteps         = 1e6
     learning_start     = 10000

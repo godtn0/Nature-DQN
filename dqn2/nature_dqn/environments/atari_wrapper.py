@@ -5,6 +5,82 @@ from collections import deque
 from gym import spaces
 
 
+class NoopResetWrapper(gym.Wrapper):
+    def __init__(self, env, noop_max=30):
+        super(NoopResetWrapper, self).__init__(env)
+        self.env = env
+        self.noop_max=noop_max
+        self.noop_action = 0
+
+    def reset(self):
+        self.env.reset()
+        noops = np.random.randint(1, self.noop_max+1)
+        for _ in range(noops):
+            obs, _, done, _ = self.env.step(self.noop_action)
+            if done:
+                obs = self.env.reset()
+
+        return obs
+
+
+class FireResetEnv(gym.Wrapper):
+    def __init__(self, env):
+        """Take action on reset for environments that are fixed until firing."""
+        gym.Wrapper.__init__(self, env)
+        assert env.unwrapped.get_action_meanings()[1] == 'FIRE'
+        assert len(env.unwrapped.get_action_meanings()) >= 3
+
+    def reset(self, **kwargs):
+        self.env.reset(**kwargs)
+        obs, _, done, _ = self.env.step(1)
+        if done:
+            self.env.reset(**kwargs)
+        obs, _, done, _ = self.env.step(2)
+        if done:
+            self.env.reset(**kwargs)
+        return obs
+
+    def step(self, ac):
+        return self.env.step(ac)
+
+
+class EpisodicLifeWrapper(gym.Wrapper):
+    def __init__(self, env):
+        """Make end-of-life == end-of-episode, but only reset on true game over.
+        Done by DeepMind for the DQN and co. since it helps value estimation.
+        """
+        gym.Wrapper.__init__(self, env)
+        self.lives = 0
+        self.was_real_done = True
+
+    def step(self, action):
+        obs, reward, done, info = self.env.step(action)
+        self.was_real_done = done
+        # check current lives, make loss of life terminal,
+        # then update lives to handle bonus lives
+        lives = self.env.unwrapped.ale.lives()
+        if lives < self.lives and lives > 0:
+            # for Qbert sometimes we stay in lives == 0 condition for a few frames
+            # so it's important to keep lives > 0, so that we only reset once
+            # the environment advertises done.
+            done = True
+        self.lives = lives
+        return obs, reward, done, info
+
+    def reset(self, **kwargs):
+        """Reset only when lives are exhausted.
+        This way all states are still reachable even though lives are episodic,
+        and the learner need not know about any of this behind-the-scenes.
+        """
+        if self.was_real_done:
+            obs = self.env.reset(**kwargs)
+        else:
+            # no-op step to advance from terminal/lost life state
+            obs, _, _, _ = self.env.step(0)
+        self.lives = self.env.unwrapped.ale.lives()
+        return obs
+
+
 class AtariPreproWrapper(gym.Wrapper):
     def __init__(self, env, prepro):
         super(AtariPreproWrapper, self).__init__(env)
@@ -65,7 +141,8 @@ class ClipRewardEnv(gym.RewardWrapper):
         return np.sign(reward)
 
 
-def deepmind_wrapping(env, prepro=None, skip=None, clipreward=True, atariprepro=True, maxandskip=True):
+def deepmind_wrapping(env, prepro=None, skip=None, clipreward=True, atariprepro=True, maxandskip=True, episodiclife=True
+                      , noopreset=True):
     if atariprepro:
         env = AtariPreproWrapper(env, prepro)
         print('atariprepro yes')
@@ -73,5 +150,10 @@ def deepmind_wrapping(env, prepro=None, skip=None, clipreward=True, atariprepro=
         env = ClipRewardEnv(env)
     if maxandskip:
         env = MaxAndSkipEnv(env, skip)
-
+    if episodiclife:
+        env = EpisodicLifeWrapper(env)
+    if noopreset:
+        env = NoopResetWrapper(env)
+    if 'FIRE' in env.unwrapped.get_action_meanings():
+        env = FireResetEnv(env)
     return env

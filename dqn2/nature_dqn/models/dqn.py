@@ -2,7 +2,7 @@ import tensorflow as tf
 import tensorflow.contrib.layers as layers
 import numpy as np
 from nature_dqn.configs.config import config
-from nature_dqn.models.replay_buffer3 import ReplayBuffer
+from nature_dqn.models.replay_buffer import ReplayBuffer
 
 
 class DQN(object):
@@ -28,7 +28,7 @@ class DQN(object):
             l1 = layers.conv2d(state, num_outputs=32, kernel_size=8, stride=4, padding='VALID', activation_fn=tf.nn.relu)
             l2 = layers.conv2d(l1, num_outputs=64, kernel_size=4, stride=2, padding='VALID', activation_fn=tf.nn.relu)
             l3 = layers.conv2d(l2, num_outputs=64, kernel_size=3, stride=1, padding='VALID', activation_fn=tf.nn.relu)
-            l3 = layers.flatten(l3, scope=scope)
+            l3 = layers.flatten(l3)
             l4 = layers.fully_connected(inputs=l3, num_outputs=512, activation_fn=tf.nn.relu)
             out = layers.fully_connected(inputs=l4, num_outputs=num_actions, activation_fn=None)
         return out
@@ -133,6 +133,7 @@ class DQN(object):
                 # chose action according to current Q and exploration
                 best_action, q_values = self.get_best_action(q_input)
                 action = exp_schedule.get_action(best_action)
+                exp_schedule.update(t)
 
                 # perform action in env
                 new_state, reward, done, info = self.env.step(action)
@@ -144,8 +145,10 @@ class DQN(object):
 
                 # perform a training step
                 loss_eval, grad_eval = self.train_step(t, replay_buffer, lr_schedule.epsilon)
+                lr_schedule.update(t)
                 if t%1000==0:
-                    print('time stpe = ', t, '.......')
+                    print('time stpe = ', t, ' ,epsilon = ', exp_schedule.epsilon, ' ,lr = ', lr_schedule.epsilon
+                          , ', loss = ', loss_eval, ' .........')
                 # count reward
                 total_reward += reward
                 if done or t >= config.nsteps_train:
